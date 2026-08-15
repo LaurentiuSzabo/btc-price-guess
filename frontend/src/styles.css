@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+@theme {
+  --color-plane: #060708;
+  --color-surface: #0d0f11;
+  --color-surface-2: #0a0b0d;
+  --color-stat-surface: #0c0e10;
+  --color-card-border: #17191d;
+  --color-panel-border: #1e2228;
+  --color-ink: #e8eaec;
+  --color-ink-dim: #8a9199;
+  --color-ink-dim-2: #c7ccd1;
+  --color-ink-muted: #6b7280;
+  --color-ink-faint: #4b5259;
+  --color-ink-faint-2: #565d64;
+  --color-ink-empty: #3f464d;
+  --color-good: #34d399;
+  --color-good-text: #6ee7a8;
+  --color-good-soft: #12291f;
+  --color-good-border: #1c3a2c;
+  --color-good-row: rgba(52, 211, 153, 0.045);
+  --color-good-row-border: rgba(52, 211, 153, 0.14);
+  --color-critical: #ef4444;
+  --color-critical-text: #f2848a;
+  --color-critical-soft: #261417;
+  --color-critical-border: #4a2226;
+  --color-critical-row: rgba(239, 68, 68, 0.04);
+  --color-critical-row-border: rgba(239, 68, 68, 0.12);
+  --font-sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--color-plane);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Chart-graticule texture, drifting slowly — lives inside the page's own
+   root container (not the body), matching the source design's structure. */
+.grid-drift {
+  background-image:
+    linear-gradient(to right, rgba(120, 140, 150, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(120, 140, 150, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px, 60px 60px;
+  animation: gridDrift 6s linear infinite;
+  mask-image: radial-gradient(900px 620px at 50% 22%, #000 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(900px 620px at 50% 22%, #000 0%, transparent 78%);
+}
+
+.candle-fade {
+  mask-image: linear-gradient(to top, #000 0%, transparent 92%);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 92%);
+}
+
+@keyframes gridDrift {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: -60px 0, -60px 0;
+  }
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+}
+
+.pulse-dot {
+  animation: pulseDot 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grid-drift,
+  .pulse-dot {
+    animation: none;
+  }
+}
+
+@keyframes flash-up-bg {
+  0% {
+    background-color: var(--color-good-soft);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes flash-down-bg {
+  0% {
+    background-color: var(--color-critical-soft);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes score-pulse {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.flash-up {
+  animation: flash-up-bg 700ms ease-out;
+}
+
+.flash-down {
+  animation: flash-down-bg 700ms ease-out;
+}
+
+.toast-in {
+  animation: toast-in 220ms ease-out;
+}
+
+.score-pulse {
+  animation: score-pulse 500ms ease-out;
+}
+
+.rise-in {
+  animation: rise-in 280ms ease both;
+}
+
+/* One-off neutral shade for "price hasn't moved yet" states — not part of
+   the good/critical status pair, so it doesn't belong in @theme. */
+.text-diff-neutral {
+  color: #7d848c;
+}

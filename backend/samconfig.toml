@@ -1,0 +1,10 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "btc-price-guess"
+resolve_s3 = true
+s3_prefix = "btc-price-guess"
+region = "eu-north-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+disable_rollback = false
