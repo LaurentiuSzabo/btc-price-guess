@@ -22,7 +22,8 @@ close the tab and come back later and it's all still there.
   polls the backend (every 2.5s) or places a new guess, the server checks whether the pending guess is
   now resolvable, and if so, resolves it, updates the score/streak/accuracy, and clears it so a new guess
   can be placed. There's no separate cron/scheduler — resolution just happens on the next request after
-  it's eligible.
+  it's eligible. That same 2.5s poll is also how the UI stays live — open the same player in two tabs
+  and they converge within a couple of seconds of each other.
 - **Fairness under concurrency.** DynamoDB writes for placing/resolving a guess use conditional
   expressions (`ConditionExpression`), so two near-simultaneous requests for the same player can't both
   place a guess or both resolve the same one.
@@ -54,26 +55,8 @@ styled as a dark trading-terminal (Space Grotesk + JetBrains Mono, live sparklin
 high/low, streak/accuracy stat pills). No state management library — the whole app is signals and a
 handful of computed values.
 
-## Design decisions & known limitations
-
-Every non-obvious choice here was made deliberately, and it's worth stating the reasoning rather than
-leaving it implicit:
-
-- **Eventually consistent across tabs/devices, not real-time.** The app polls every 2.5s; it doesn't
-  push updates over a WebSocket. Open the same player in two tabs and they'll converge within ~2.5s of
-  each other, not instantly. For a single-player casual game this is a reasonable tradeoff — a real-time
-  sync would mean API Gateway WebSockets + DynamoDB Streams, which is a legitimate next step but not
-  needed for this scope.
-- **Dark theme only, no light/dark toggle.** Deliberate call for a trading-app aesthetic, not an
-  oversight — see the CSS custom properties in `frontend/src/styles.css` if you want to extend it.
-- **History is capped at the last 10 resolved guesses per player**, by design — enough to feel like a
-  history without the "Recent calls" card growing unbounded (it has its own fixed height and scrolls
-  internally beyond that anyway).
-- **Not production-hardened.** There's no rate limiting on the guess endpoint (DynamoDB conditional
-  writes prevent double-guessing, but nothing stops someone from hammering the endpoint), no
-  CloudWatch alarms/dashboards, and no WAF in front of API Gateway. A natural next step toward
-  production would be `AWS::WAFv2` on the API plus basic alarms on Lambda error rate and DynamoDB
-  throttling.
+**Observability:** CloudWatch alarms on Lambda error rates and DynamoDB throttling publish to an SNS
+topic (`AlarmTopicArn` in the stack outputs) — subscribe an email or Slack webhook to it to get paged.
 
 ## Running locally
 
