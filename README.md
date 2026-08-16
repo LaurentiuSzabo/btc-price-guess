@@ -63,9 +63,10 @@ CloudFormation) — one `sam deploy` creates everything:
 - Region: `eu-north-1` (Stockholm)
 
 Frontend: Angular 22 (standalone components, signals, zoneless change detection) + Tailwind CSS v4,
-styled as a dark trading-terminal (Space Grotesk + JetBrains Mono, live sparkline chart, session
-high/low, streak/accuracy stat pills). No state management library — the whole app is signals and a
-handful of computed values.
+styled as a trading-terminal (Space Grotesk + JetBrains Mono, live sparkline chart, session high/low,
+streak/accuracy stat pills), with a light/dark theme toggle — the choice persists in `localStorage` and
+is applied before Angular even boots, so there's no flash of the wrong theme on reload. No state
+management library — the whole app is signals and a handful of computed values.
 
 **Observability:** CloudWatch alarms on Lambda error rates and DynamoDB throttling publish to an SNS
 topic (`AlarmTopicArn` in the stack outputs) — subscribe an email or Slack webhook to it to get paged.
