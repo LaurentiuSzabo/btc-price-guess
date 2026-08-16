@@ -2,7 +2,8 @@
 
 Guess whether the price of Bitcoin (BTC/USD) will be higher or lower in one minute. Correct guesses
 score +1, wrong guesses score -1. Scores, streak, accuracy, and recent history persist per player —
-close the tab and come back later and it's all still there.
+close the tab and come back later and it's all still there. Updates push live over a WebSocket rather
+than polling, so opening the same player in two tabs keeps them in sync instantly.
 
 **Live app:** https://d1gnkq5pco145h.cloudfront.net
 **API base URL:** https://mdpev870u4.execute-api.eu-north-1.amazonaws.com
@@ -81,14 +82,19 @@ npm install
 npm start   # ng serve — http://localhost:4200
 ```
 
-By default `environment.development.ts` points at the deployed API. To run fully locally instead,
-point it at `http://127.0.0.1:3000` and run the backend locally with SAM (requires Docker):
+By default `environment.development.ts` points at the deployed API. To run the HTTP side fully
+locally instead, point `apiBaseUrl` at `http://127.0.0.1:3000` and run the backend locally with SAM
+(requires Docker):
 
 ```bash
 cd backend
 sam build
 sam local start-api   # http://127.0.0.1:3000
 ```
+
+`sam local` doesn't emulate WebSocket APIs, so `webSocketUrl` still needs to point at a real deployed
+one (or be left broken) — the app's own fallback then just uses HTTP polling instead, which is exactly
+the resilience path described above, not a special case to work around.
 
 ## Testing
 
