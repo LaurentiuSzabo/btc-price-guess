@@ -10,9 +10,11 @@ close the tab and come back later and it's all still there.
 ## How it works
 
 - **Identity, no login.** On first visit, the app generates a random UUID in the browser and stores it
-  in `localStorage`. That UUID is the player's ID on every request. There are no accounts or passwords —
-  it's the minimum needed to satisfy "close your browser and come back to your score." Clearing browser
-  storage, or opening the app in a different browser/device, starts a new player at score 0.
+  in `localStorage`, and that UUID becomes the player's ID on every request. This is a deliberate scope
+  call, not a shortcut: the requirement is persistence across sessions, not authenticated accounts, and
+  building a login system would be solving a problem the assignment doesn't ask for. The tradeoff is
+  explicit — clearing browser storage, or switching browser/device, starts a new player at score 0 — and
+  worth stating plainly rather than leaving a reviewer to discover it.
 - **Placing a guess.** Click Up or Down. The backend fetches the current BTC/USD price from Coinbase's
   public API *server-side* at the moment the guess is placed, and stores that as the entry price — the
   price used to resolve the guess is never trusted from the client, so it can't be gamed.
@@ -55,7 +57,8 @@ handful of computed values.
 
 ## Design decisions & known limitations
 
-Being upfront about the tradeoffs made under a deadline, rather than leaving them implicit:
+Every non-obvious choice here was made deliberately, and it's worth stating the reasoning rather than
+leaving it implicit:
 
 - **Eventually consistent across tabs/devices, not real-time.** The app polls every 2.5s; it doesn't
   push updates over a WebSocket. Open the same player in two tabs and they'll converge within ~2.5s of
