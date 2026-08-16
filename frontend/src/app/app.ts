@@ -135,17 +135,20 @@ export class App implements OnInit, OnDestroy {
     return points.length ? `$${Math.min(...points).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
   });
 
-  readonly priceIntegerPart = computed(() => {
+  // Both parts are derived from one rounded string so they never disagree —
+  // formatting integer/decimal separately (e.g. Math.trunc + toFixed) can
+  // round each half differently for values like x.995 due to float precision.
+  private readonly priceFormatted = computed(() => {
     const p = this.price();
-    if (p === null) return '0';
-    return Math.trunc(p).toLocaleString('en-US');
+    if (p === null) return '0.00';
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(p);
   });
 
-  readonly priceDecimalPart = computed(() => {
-    const p = this.price();
-    if (p === null) return '00';
-    return p.toFixed(2).split('.')[1];
-  });
+  readonly priceIntegerPart = computed(() => this.priceFormatted().split('.')[0]);
+  readonly priceDecimalPart = computed(() => this.priceFormatted().split('.')[1]);
 
   // Y position (in chart coordinates) of the guess's entry price, for the dashed lock line.
   readonly lockY = computed(() => {
