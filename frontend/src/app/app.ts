@@ -2,6 +2,7 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { DecimalPipe } from '@angular/common';
 import { GameApiService, Resolution } from './game-api.service';
 import { getPlayerId } from './player-id';
+import { Theme, applyTheme, getStoredTheme } from './theme';
 
 const RESOLVE_DELAY_MS = 60_000;
 const POLL_INTERVAL_MS = 2_500;
@@ -41,6 +42,7 @@ export class App implements OnInit, OnDestroy {
   readonly placing = signal(false);
   readonly resetting = signal(false);
   readonly pendingDirection = signal<'up' | 'down' | null>(null);
+  readonly theme = signal<Theme>(getStoredTheme());
 
   readonly score = signal(0);
   readonly streak = signal(0);
@@ -106,7 +108,11 @@ export class App implements OnInit, OnDestroy {
     return points[points.length - 1] >= points[0];
   });
 
-  readonly sparkColor = computed(() => (this.trendUp() ? '#34d399' : '#ef4444'));
+  readonly sparkColor = computed(() => {
+    const light = this.theme() === 'light';
+    if (this.trendUp()) return light ? '#0ca30c' : '#34d399';
+    return light ? '#d03b3b' : '#ef4444';
+  });
 
   readonly sessionDeltaLabel = computed(() => {
     const points = this.priceHistory();
@@ -170,6 +176,10 @@ export class App implements OnInit, OnDestroy {
     return `${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(2)}`;
   });
 
+  constructor() {
+    applyTheme(this.theme());
+  }
+
   async ngOnInit(): Promise<void> {
     await this.poll();
     this.ready.set(true);
@@ -182,6 +192,12 @@ export class App implements OnInit, OnDestroy {
     clearInterval(this.tickHandle);
     clearTimeout(this.flashTimeout);
     clearTimeout(this.toastTimeout);
+  }
+
+  toggleTheme(): void {
+    const next: Theme = this.theme() === 'dark' ? 'light' : 'dark';
+    this.theme.set(next);
+    applyTheme(next);
   }
 
   async onGuess(direction: 'up' | 'down'): Promise<void> {

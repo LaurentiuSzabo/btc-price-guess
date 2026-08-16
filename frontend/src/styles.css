@@ -1,12 +1,19 @@
 @import "tailwindcss";
 
 @theme {
+  /* Surfaces */
   --color-plane: #060708;
+  --color-page-glow: #101a18;
   --color-surface: #0d0f11;
   --color-surface-2: #0a0b0d;
   --color-stat-surface: #0c0e10;
+  --color-panel-bg: #0b0d0f;
   --color-card-border: #17191d;
   --color-panel-border: #1e2228;
+  --color-ring-track: #1b1f24;
+  --color-lock-line: #3a4048;
+
+  /* Ink scale */
   --color-ink: #e8eaec;
   --color-ink-dim: #8a9199;
   --color-ink-dim-2: #c7ccd1;
@@ -14,20 +21,120 @@
   --color-ink-faint: #4b5259;
   --color-ink-faint-2: #565d64;
   --color-ink-empty: #3f464d;
+  --color-direction-text: #dfe3e7;
+  --color-locked-text: #7d848c;
+  --color-diff-neutral: #7d848c;
+  --color-clear-hover: #9aa1a8;
+
+  /* Good (up / correct) */
   --color-good: #34d399;
   --color-good-text: #6ee7a8;
   --color-good-soft: #12291f;
   --color-good-border: #1c3a2c;
   --color-good-row: rgba(52, 211, 153, 0.045);
   --color-good-row-border: rgba(52, 211, 153, 0.14);
+  --color-good-btn-from: #12261d;
+  --color-good-btn-to: #0d1a14;
+  --color-good-btn-border: #1e4634;
+  --color-good-hint: #4e7a65;
+  --color-good-label: #5f8f78;
+  --color-good-glow: rgba(52, 211, 153, 0.53);
+  --color-good-pill-from: #0e1b15;
+  --color-good-pill-to: #0a1310;
+
+  /* Critical (down / incorrect) */
   --color-critical: #ef4444;
   --color-critical-text: #f2848a;
   --color-critical-soft: #261417;
   --color-critical-border: #4a2226;
   --color-critical-row: rgba(239, 68, 68, 0.04);
   --color-critical-row-border: rgba(239, 68, 68, 0.12);
+  --color-critical-btn-from: #251315;
+  --color-critical-btn-to: #180d0f;
+  --color-critical-btn-border: #4a2226;
+  --color-critical-hint: #8a5257;
+
+  /* Decorative texture */
+  --color-grid-major: rgba(120, 140, 150, 0.12);
+  --color-grid-minor: rgba(120, 140, 150, 0.05);
+
+  /* Skeleton / spinner veils (were bg-white/N, need to invert for light) */
+  --color-veil-1: rgba(255, 255, 255, 0.1);
+  --color-veil-2: rgba(255, 255, 255, 0.05);
+  --color-veil-track: rgba(255, 255, 255, 0.15);
+  --color-veil-arc: rgba(255, 255, 255, 0.4);
+
+  --color-scrollbar-thumb: rgba(255, 255, 255, 0.18);
+  --color-scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+
   --font-sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Light theme — same roles, values chosen for contrast on a white surface
+   rather than a literal inversion of the dark palette. */
+:root[data-theme="light"] {
+  --color-plane: #f7f7f5;
+  --color-page-glow: #eef6f1;
+  --color-surface: #ffffff;
+  --color-surface-2: #fbfbfa;
+  --color-stat-surface: #f3f3f1;
+  --color-panel-bg: #f6f6f4;
+  --color-card-border: #e4e3de;
+  --color-panel-border: #e4e3de;
+  --color-ring-track: #e4e3de;
+  --color-lock-line: #c4c8cd;
+
+  --color-ink: #14161a;
+  --color-ink-dim: #565c64;
+  --color-ink-dim-2: #33373d;
+  --color-ink-muted: #767b85;
+  --color-ink-faint: #9aa0a8;
+  --color-ink-faint-2: #7d848c;
+  --color-ink-empty: #aeb3ba;
+  --color-direction-text: #1f232a;
+  --color-locked-text: #6b7280;
+  --color-diff-neutral: #767b85;
+  --color-clear-hover: #33373d;
+
+  --color-good: #0ca30c;
+  --color-good-text: #0ca30c;
+  --color-good-soft: #e3f7ea;
+  --color-good-border: #b8e6c8;
+  --color-good-row: rgba(12, 163, 12, 0.06);
+  --color-good-row-border: rgba(12, 163, 12, 0.18);
+  --color-good-btn-from: #eafbf0;
+  --color-good-btn-to: #ddf5e6;
+  --color-good-btn-border: #b8e6c8;
+  --color-good-hint: #3f8a5c;
+  --color-good-label: #3f8a5c;
+  --color-good-glow: rgba(12, 163, 12, 0.35);
+  --color-good-pill-from: #e3f7ea;
+  --color-good-pill-to: #d3f0dd;
+
+  --color-critical: #d03b3b;
+  --color-critical-text: #d03b3b;
+  --color-critical-soft: #fceceb;
+  --color-critical-border: #f3c6c2;
+  --color-critical-row: rgba(208, 59, 59, 0.05);
+  --color-critical-row-border: rgba(208, 59, 59, 0.16);
+  --color-critical-btn-from: #fdeceb;
+  --color-critical-btn-to: #fbdcda;
+  --color-critical-btn-border: #f3c6c2;
+  --color-critical-hint: #a6524f;
+
+  --color-grid-major: rgba(20, 22, 26, 0.07);
+  --color-grid-minor: rgba(20, 22, 26, 0.03);
+
+  --color-veil-1: rgba(20, 22, 26, 0.08);
+  --color-veil-2: rgba(20, 22, 26, 0.05);
+  --color-veil-track: rgba(20, 22, 26, 0.12);
+  --color-veil-arc: rgba(20, 22, 26, 0.32);
+
+  --color-scrollbar-thumb: rgba(20, 22, 26, 0.18);
+  --color-scrollbar-thumb-hover: rgba(20, 22, 26, 0.3);
+
+  color-scheme: light;
 }
 
 html,
@@ -44,8 +151,8 @@ body {
    root container (not the body), matching the source design's structure. */
 .grid-drift {
   background-image:
-    linear-gradient(to right, rgba(120, 140, 150, 0.055) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(120, 140, 150, 0.04) 1px, transparent 1px);
+    linear-gradient(to right, var(--color-grid-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-grid-minor) 1px, transparent 1px);
   background-size: 60px 60px, 60px 60px;
   animation: gridDrift 6s linear infinite;
   mask-image: radial-gradient(900px 620px at 50% 22%, #000 0%, transparent 78%);
@@ -161,8 +268,32 @@ body {
   animation: rise-in 280ms ease both;
 }
 
-/* One-off neutral shade for "price hasn't moved yet" states — not part of
-   the good/critical status pair, so it doesn't belong in @theme. */
 .text-diff-neutral {
-  color: #7d848c;
+  color: var(--color-diff-neutral);
+}
+
+/* Scrollbar for the Recent Calls list — otherwise the browser falls back to
+   its default (light) system scrollbar, which clashes hard on dark theme. */
+.themed-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar-thumb) transparent;
+}
+
+.themed-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.themed-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.themed-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.themed-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-scrollbar-thumb-hover);
 }
