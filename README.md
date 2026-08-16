@@ -10,16 +10,15 @@ close the tab and come back later and it's all still there.
 ## How it works
 
 - **Identity, no login.** On first visit, the app generates a random UUID in the browser and stores it
-  in `localStorage`, and that UUID becomes the player's ID on every request. This is a deliberate scope
-  call, not a shortcut: the requirement is persistence across sessions, not authenticated accounts, and
-  building a login system would be solving a problem the assignment doesn't ask for. The tradeoff is
-  explicit — clearing browser storage, or switching browser/device, starts a new player at score 0 — and
-  worth stating plainly rather than leaving a reviewer to discover it.
+  in `localStorage`, and that UUID becomes the player's ID on every request. No signup, no password, no
+  friction — you land on the page and you're already playing, and your score, streak, and history are
+  right there again if you close the tab and come back later. Clearing browser storage, or switching to
+  a different browser or device, starts a fresh player at score 0.
 - **Placing a guess.** Click Up or Down. The backend fetches the current BTC/USD price from Coinbase's
   public API *server-side* at the moment the guess is placed, and stores that as the entry price — the
   price used to resolve the guess is never trusted from the client, so it can't be gamed.
 - **Resolution.** A guess resolves once **both** at least 60 seconds have passed **and** the price has
-  actually moved from the entry price — exactly as specified. This is checked lazily: every time the app
+  actually moved from the entry price. This is checked lazily: every time the app
   polls the backend (every 2.5s) or places a new guess, the server checks whether the pending guess is
   now resolvable, and if so, resolves it, updates the score/streak/accuracy, and clears it so a new guess
   can be placed. There's no separate cron/scheduler — resolution just happens on the next request after
@@ -72,9 +71,9 @@ leaving it implicit:
   internally beyond that anyway).
 - **Not production-hardened.** There's no rate limiting on the guess endpoint (DynamoDB conditional
   writes prevent double-guessing, but nothing stops someone from hammering the endpoint), no
-  CloudWatch alarms/dashboards, and no WAF in front of API Gateway. Fine for an assessment; a real
-  next step before calling this "production" would be `AWS::WAFv2` on the API + basic alarms on Lambda
-  error rate / DynamoDB throttling.
+  CloudWatch alarms/dashboards, and no WAF in front of API Gateway. A natural next step toward
+  production would be `AWS::WAFv2` on the API plus basic alarms on Lambda error rate and DynamoDB
+  throttling.
 
 ## Running locally
 
