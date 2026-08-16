@@ -1,4 +1,6 @@
 const gameService = require('../lib/gameService');
+const { serializePlayerState } = require('../lib/serialize');
+const { broadcastToPlayer } = require('../lib/broadcast');
 
 const headers = {
   'Content-Type': 'application/json',
@@ -13,21 +15,15 @@ exports.handler = async (event) => {
 
   try {
     const { player, price, resolution } = await gameService.getState(playerId);
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        playerId: player.playerId,
-        score: player.score,
-        guess: player.guess,
-        history: player.history ?? [],
-        streak: player.streak ?? 0,
-        wins: player.wins ?? 0,
-        totalPlayed: player.totalPlayed ?? 0,
-        price,
-        resolution,
-      }),
-    };
+    const body = serializePlayerState(player, price, resolution);
+
+    // Only worth telling WS subscribers when this GET actually changed
+    // something (a lazy resolution) — a plain read isn't news to anyone.
+    if (resolution) {
+      await broadcastToPlayer(playerId, body).catch((err) => console.error('broadcast failed', err));
+    }
+
+    return { statusCode: 200, headers, body: JSON.stringify(body) };
   } catch (err) {
     console.error(err);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'INTERNAL_ERROR' }) };

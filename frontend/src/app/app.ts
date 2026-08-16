@@ -1,8 +1,9 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import { GameApiService, Resolution } from './game-api.service';
+import { GameApiService, PlayerState, Resolution } from './game-api.service';
 import { getPlayerId } from './player-id';
 import { Theme, applyTheme, getStoredTheme } from './theme';
+import { RealtimeService } from './realtime.service';
 
 const RESOLVE_DELAY_MS = 60_000;
 const POLL_INTERVAL_MS = 2_500;
@@ -31,6 +32,7 @@ interface Candle {
 })
 export class App implements OnInit, OnDestroy {
   private api = inject(GameApiService);
+  private realtime = inject(RealtimeService);
   private playerId = getPlayerId();
   private pollHandle?: ReturnType<typeof setInterval>;
   private tickHandle?: ReturnType<typeof setInterval>;
@@ -181,17 +183,30 @@ export class App implements OnInit, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
-    await this.poll();
+    await this.poll(); // fast first paint, same as before
     this.ready.set(true);
-    this.pollHandle = setInterval(() => this.poll(), POLL_INTERVAL_MS);
     this.tickHandle = setInterval(() => this.now.set(Date.now()), TICK_INTERVAL_MS);
+
+    // Live updates move to the WebSocket from here; HTTP polling only comes
+    // back if the socket can't connect or keeps dropping.
+    this.realtime.connect(
+      this.playerId,
+      (state) => this.applyState(state),
+      () => this.startFallbackPolling()
+    );
   }
 
   ngOnDestroy(): void {
+    this.realtime.disconnect();
     clearInterval(this.pollHandle);
     clearInterval(this.tickHandle);
     clearTimeout(this.flashTimeout);
     clearTimeout(this.toastTimeout);
+  }
+
+  private startFallbackPolling(): void {
+    if (this.pollHandle) return;
+    this.pollHandle = setInterval(() => this.poll(), POLL_INTERVAL_MS);
   }
 
   toggleTheme(): void {
@@ -243,16 +258,7 @@ export class App implements OnInit, OnDestroy {
     }
   }
 
-  private applyState(state: {
-    score: number;
-    streak: number;
-    wins: number;
-    totalPlayed: number;
-    guess: { direction: 'up' | 'down'; entryPrice: number; placedAt: number } | null;
-    price: number;
-    resolution: Resolution | null;
-    history: Resolution[];
-  }): void {
+  private applyState(state: PlayerState): void {
     const prevPrice = this.price();
     if (prevPrice !== null && state.price !== prevPrice) {
       this.flash.set(state.price > prevPrice ? 'up' : 'down');

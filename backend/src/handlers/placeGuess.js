@@ -1,4 +1,6 @@
 const gameService = require('../lib/gameService');
+const { serializePlayerState } = require('../lib/serialize');
+const { broadcastToPlayer } = require('../lib/broadcast');
 
 const headers = {
   'Content-Type': 'application/json',
@@ -25,21 +27,13 @@ exports.handler = async (event) => {
 
   try {
     const { player, price, resolution } = await gameService.placeGuess(playerId, direction);
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        playerId: player.playerId,
-        score: player.score,
-        guess: player.guess,
-        history: player.history ?? [],
-        streak: player.streak ?? 0,
-        wins: player.wins ?? 0,
-        totalPlayed: player.totalPlayed ?? 0,
-        price,
-        resolution,
-      }),
-    };
+    const body = serializePlayerState(player, price, resolution);
+
+    // Placing a guess always changes state — tell every other tab watching
+    // this player right away instead of waiting for their next tick.
+    await broadcastToPlayer(playerId, body).catch((err) => console.error('broadcast failed', err));
+
+    return { statusCode: 200, headers, body: JSON.stringify(body) };
   } catch (err) {
     if (err.statusCode === 409) {
       return { statusCode: 409, headers, body: JSON.stringify({ error: 'GUESS_IN_PROGRESS' }) };

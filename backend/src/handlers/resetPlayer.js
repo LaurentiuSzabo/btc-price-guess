@@ -1,4 +1,6 @@
 const gameService = require('../lib/gameService');
+const { serializePlayerState } = require('../lib/serialize');
+const { broadcastToPlayer } = require('../lib/broadcast');
 
 const headers = {
   'Content-Type': 'application/json',
@@ -13,19 +15,11 @@ exports.handler = async (event) => {
 
   try {
     const player = await gameService.resetPlayer(playerId);
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        playerId: player.playerId,
-        score: player.score,
-        guess: player.guess,
-        history: player.history ?? [],
-        streak: player.streak ?? 0,
-        wins: player.wins ?? 0,
-        totalPlayed: player.totalPlayed ?? 0,
-      }),
-    };
+    const body = serializePlayerState(player, null, null);
+
+    await broadcastToPlayer(playerId, body).catch((err) => console.error('broadcast failed', err));
+
+    return { statusCode: 200, headers, body: JSON.stringify(body) };
   } catch (err) {
     console.error(err);
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'INTERNAL_ERROR' }) };

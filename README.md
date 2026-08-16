@@ -6,6 +6,7 @@ close the tab and come back later and it's all still there.
 
 **Live app:** https://d1gnkq5pco145h.cloudfront.net
 **API base URL:** https://mdpev870u4.execute-api.eu-north-1.amazonaws.com
+**WebSocket URL:** wss://tz48f7xl5a.execute-api.eu-north-1.amazonaws.com/prod
 
 ## How it works
 
@@ -18,12 +19,16 @@ close the tab and come back later and it's all still there.
   public API *server-side* at the moment the guess is placed, and stores that as the entry price — the
   price used to resolve the guess is never trusted from the client, so it can't be gamed.
 - **Resolution.** A guess resolves once **both** at least 60 seconds have passed **and** the price has
-  actually moved from the entry price. This is checked lazily: every time the app
-  polls the backend (every 2.5s) or places a new guess, the server checks whether the pending guess is
-  now resolvable, and if so, resolves it, updates the score/streak/accuracy, and clears it so a new guess
-  can be placed. There's no separate cron/scheduler — resolution just happens on the next request after
-  it's eligible. That same 2.5s poll is also how the UI stays live — open the same player in two tabs
-  and they converge within a couple of seconds of each other.
+  actually moved from the entry price. This is checked lazily: every time the server handles a guess,
+  a tick, or a plain read for that player, it checks whether the pending guess is now resolvable, and
+  if so, resolves it, updates the score/streak/accuracy, and clears it so a new guess can be placed.
+  There's no separate cron/scheduler — resolution just happens on the next touch after it's eligible.
+- **Live, and synced across tabs.** After the first paint, the app connects over a WebSocket and sends
+  a lightweight "tick" every 2.5s instead of polling over HTTP. Whichever tab's tick (or guess, or
+  reset) causes a state change, the server pushes the result to *every* tab currently watching that
+  player — open the same player in two tabs and they update in lockstep, not on their own independent
+  polling schedules. If the socket can't connect or keeps dropping (some networks block WebSockets),
+  the app quietly falls back to the old HTTP polling behavior instead of breaking.
 - **Fairness under concurrency.** DynamoDB writes for placing/resolving a guess use conditional
   expressions (`ConditionExpression`), so two near-simultaneous requests for the same player can't both
   place a guess or both resolve the same one.
@@ -38,12 +43,19 @@ close the tab and come back later and it's all still there.
 Fully serverless on AWS, defined as infrastructure-as-code in `backend/template.yaml` (AWS SAM /
 CloudFormation) — one `sam deploy` creates everything:
 
-- **API**: API Gateway (HTTP API) → 3 Lambda functions (Node.js 22) → DynamoDB
+- **HTTP API**: API Gateway (HTTP API) → 3 Lambda functions (Node.js 22) → DynamoDB
   - `GET /players/{playerId}` — fetch-or-create the player, lazily resolve a pending guess, return
     current state + live price
   - `POST /players/{playerId}/guess` — place a new guess (rejected with `409` if one is already pending)
   - `POST /players/{playerId}/reset` — clear score/streak/accuracy/history (leaves a pending guess intact)
-- **Data store**: one DynamoDB table (`Players`, on-demand billing), keyed by `playerId`
+- **WebSocket API**: a separate API Gateway (WebSocket) + one router Lambda handling `$connect`,
+  `$disconnect`, `subscribe`, and `tick`. No DynamoDB Streams in the middle — whichever Lambda (HTTP or
+  WS) just wrote a change looks up who's subscribed to that player (via a `ConnectionsTable` GSI) and
+  pushes the new state to each of them directly with the API Gateway Management API. Connection records
+  carry a TTL matching API Gateway's own 2-hour max WebSocket lifetime, so a missed `$disconnect` cleans
+  itself up.
+- **Data store**: two DynamoDB tables, both on-demand billing — `Players` (keyed by `playerId`) and
+  `Connections` (keyed by `connectionId`, GSI on `playerId`)
 - **Price feed**: [Coinbase's public spot price API](https://api.coinbase.com/v2/prices/BTC-USD/spot)
   (no API key required), called server-side only
 - **Frontend hosting**: S3 (private, no public access) behind CloudFront using Origin Access Control —
@@ -96,11 +108,11 @@ sam build
 sam deploy --guided   # first time: pick a stack name, region, allow IAM role creation
 ```
 
-Note the `ApiUrl`, `FrontendBucketName`, and `FrontendDistributionId` from the output.
+Note the `ApiUrl`, `WebSocketUrl`, `FrontendBucketName`, and `FrontendDistributionId` from the output.
 
 **2. Frontend:**
 
-Put your `ApiUrl` into `frontend/src/environments/environment.ts` and
+Put your `ApiUrl` and `WebSocketUrl` into `frontend/src/environments/environment.ts` and
 `environment.development.ts`, then:
 
 ```bash

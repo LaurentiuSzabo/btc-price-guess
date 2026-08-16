@@ -12,6 +12,8 @@ Globals:
     Environment:
       Variables:
         PLAYERS_TABLE: !Ref PlayersTable
+        CONNECTIONS_TABLE: !Ref ConnectionsTable
+        WEBSOCKET_ENDPOINT: !Sub "https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
 
 Resources:
   PlayersTable:
@@ -46,6 +48,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref PlayersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConnectionsTable
+        - Statement:
+            - Effect: Allow
+              Action: execute-api:ManageConnections
+              Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
       Events:
         GetPlayer:
           Type: HttpApi
@@ -62,6 +70,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref PlayersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConnectionsTable
+        - Statement:
+            - Effect: Allow
+              Action: execute-api:ManageConnections
+              Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
       Events:
         PlaceGuess:
           Type: HttpApi
@@ -78,6 +92,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref PlayersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConnectionsTable
+        - Statement:
+            - Effect: Allow
+              Action: execute-api:ManageConnections
+              Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
       Events:
         ResetPlayer:
           Type: HttpApi
@@ -85,6 +105,117 @@ Resources:
             ApiId: !Ref GameApi
             Path: /players/{playerId}/reset
             Method: POST
+
+  # --- Real-time (WebSocket) -------------------------------------------
+  # Pushes state to every open tab watching a player, instead of each tab
+  # independently polling. No DynamoDB Streams needed: whichever handler
+  # (HTTP or WS) just wrote a change looks up subscribers and pushes to
+  # them directly.
+  ConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: connectionId
+          AttributeType: S
+        - AttributeName: playerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connectionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: PlayerIndex
+          KeySchema:
+            - AttributeName: playerId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub "${AWS::StackName}-ws"
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+
+  WebSocketFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers/websocket.handler
+      Timeout: 15
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PlayersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConnectionsTable
+        - Statement:
+            - Effect: Allow
+              Action: execute-api:ManageConnections
+              Resource: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+
+  WebSocketFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref WebSocketFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*"
+
+  WebSocketIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WebSocketFunction.Arn}/invocations"
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $connect
+      Target: !Sub "integrations/${WebSocketIntegration}"
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $disconnect
+      Target: !Sub "integrations/${WebSocketIntegration}"
+
+  SubscribeRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: subscribe
+      Target: !Sub "integrations/${WebSocketIntegration}"
+
+  TickRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: tick
+      Target: !Sub "integrations/${WebSocketIntegration}"
+
+  WebSocketDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - ConnectRoute
+      - DisconnectRoute
+      - SubscribeRoute
+      - TickRoute
+    Properties:
+      ApiId: !Ref WebSocketApi
+
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref WebSocketApi
+      DeploymentId: !Ref WebSocketDeployment
+      StageName: prod
 
   # --- Observability -------------------------------------------------------
   # Alarms publish here. Subscribe an email/Slack webhook to AlarmTopic (see
@@ -143,6 +274,26 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref ResetPlayerFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  WebSocketErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: WebSocketFunction is returning errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WebSocketFunction
       Statistic: Sum
       Period: 300
       EvaluationPeriods: 1
@@ -272,6 +423,9 @@ Outputs:
   ApiUrl:
     Description: Base URL of the game API
     Value: !Sub "https://${GameApi}.execute-api.${AWS::Region}.amazonaws.com"
+  WebSocketUrl:
+    Description: WebSocket URL for real-time push updates
+    Value: !Sub "wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
   PlayersTableName:
     Value: !Ref PlayersTable
   FrontendBucketName:
