@@ -25,7 +25,7 @@ than polling, so opening the same player in two tabs keeps them in sync instantl
   if so, resolves it, updates the score/streak/accuracy, and clears it so a new guess can be placed.
   There's no separate cron/scheduler — resolution just happens on the next touch after it's eligible.
 - **Live, and synced across tabs.** After the first paint, the app connects over a WebSocket and sends
-  a lightweight "tick" every 2.5s instead of polling over HTTP. Whichever tab's tick (or guess, or
+  a lightweight "tick" every second instead of polling over HTTP. Whichever tab's tick (or guess, or
   reset) causes a state change, the server pushes the result to *every* tab currently watching that
   player — open the same player in two tabs and they update in lockstep, not on their own independent
   polling schedules. If the socket can't connect or keeps dropping (some networks block WebSockets),

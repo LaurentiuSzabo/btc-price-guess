@@ -2,15 +2,15 @@ import { Injectable } from '@angular/core';
 import { environment } from '../environments/environment';
 import { PlayerState } from './game-api.service';
 
-const TICK_INTERVAL_MS = 2_500;
+const TICK_INTERVAL_MS = 1_000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const MAX_RECONNECT_DELAY_MS = 10_000;
 
 /**
  * Pushes live player state over a WebSocket instead of HTTP polling: connect,
- * subscribe once, then send a lightweight "tick" every 2.5s over the open
+ * subscribe once, then send a lightweight "tick" every 1s over the open
  * socket. The server pushes the result to every tab subscribed to the same
- * player, so multi-tab state converges instantly instead of within ~2.5s.
+ * player, so multi-tab state converges instantly instead of within ~1s.
  *
  * Falls back to the caller's HTTP polling if the socket can't connect or
  * keeps dropping — some networks block WebSockets entirely.
