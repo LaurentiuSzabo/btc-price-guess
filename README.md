@@ -41,6 +41,36 @@ than polling, so opening the same player in two tabs keeps them in sync instantl
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    Browser["Browser (Angular app)"]
+    Coinbase["Coinbase API (external)"]
+
+    subgraph AWS["AWS — eu-north-1"]
+        CDN["CloudFront + S3<br/>(static frontend)"]
+        HTTP["API Gateway<br/>HTTP API"]
+        WS["API Gateway<br/>WebSocket API"]
+        L1["Lambda functions<br/>(game logic)"]
+        L2["Lambda function<br/>(realtime)"]
+        DB[("DynamoDB<br/>Players")]
+        Conn[("DynamoDB<br/>Connections")]
+    end
+
+    Browser -->|"loads app"| CDN
+    Browser -->|"HTTPS: guess, state"| HTTP
+    Browser <-->|"WebSocket: live sync"| WS
+
+    HTTP --> L1
+    WS --> L2
+
+    L1 --> DB
+    L2 --> DB
+    L2 --> Conn
+
+    L1 -->|"fetch price"| Coinbase
+    L2 -->|"fetch price"| Coinbase
+```
+
 Fully serverless on AWS, defined as infrastructure-as-code in `backend/template.yaml` (AWS SAM /
 CloudFormation) — one `sam deploy` creates everything:
 
