@@ -11,33 +11,18 @@ than polling, so opening the same player in two tabs keeps them in sync instantl
 
 ## How it works
 
-- **Identity, no login.** On first visit, the app generates a random UUID in the browser and stores it
-  in `localStorage`, and that UUID becomes the player's ID on every request. No signup, no password, no
-  friction — you land on the page and you're already playing, and your score, streak, and history are
-  right there again if you close the tab and come back later. Clearing browser storage, or switching to
-  a different browser or device, starts a fresh player at score 0.
-- **Placing a guess.** Click Up or Down. The backend fetches the current BTC/USD price from Coinbase's
-  public API *server-side* at the moment the guess is placed, and stores that as the entry price — the
-  price used to resolve the guess is never trusted from the client, so it can't be gamed.
-- **Resolution.** A guess resolves once **both** at least 60 seconds have passed **and** the price has
-  actually moved from the entry price. This is checked lazily: every time the server handles a guess,
-  a tick, or a plain read for that player, it checks whether the pending guess is now resolvable, and
-  if so, resolves it, updates the score/streak/accuracy, and clears it so a new guess can be placed.
-  There's no separate cron/scheduler — resolution just happens on the next touch after it's eligible.
-- **Live, and synced across tabs.** After the first paint, the app connects over a WebSocket and sends
-  a lightweight "tick" every second instead of polling over HTTP. Whichever tab's tick (or guess, or
-  reset) causes a state change, the server pushes the result to *every* tab currently watching that
-  player — open the same player in two tabs and they update in lockstep, not on their own independent
-  polling schedules. If the socket can't connect or keeps dropping (some networks block WebSockets),
-  the app quietly falls back to the old HTTP polling behavior instead of breaking.
-- **Fairness under concurrency.** DynamoDB writes for placing/resolving a guess use conditional
-  expressions (`ConditionExpression`), so two near-simultaneous requests for the same player can't both
-  place a guess or both resolve the same one.
-- **History, streak, accuracy.** The last 10 resolved guesses, current win streak, and win/total ratio
-  are stored per player in DynamoDB and returned by the API, so all of it survives a refresh — not just
-  the score. Players can also clear their own history/stats (score, streak, accuracy, and the recent-calls
-  list) via a reset action in the UI; an in-flight pending guess, if any, is left alone so it still
-  resolves fairly.
+- **Identity, no login.** A random UUID in `localStorage` is the player ID — no signup, and your
+  score/streak/history persist until you clear storage or switch device.
+- **Placing a guess.** Click Up or Down — the backend fetches the entry price from Coinbase
+  server-side, so the client can't fake it.
+- **Resolution.** Resolves once 60+ seconds have passed **and** the price has moved. Checked lazily
+  on every touch (guess, tick, or read) — no separate scheduler.
+- **Live, synced across tabs.** A WebSocket tick every second keeps every open tab for a player in
+  sync instantly; falls back to HTTP polling if the socket can't connect.
+- **Fairness under concurrency.** DynamoDB conditional writes stop two simultaneous requests from
+  both placing or both resolving the same guess.
+- **History, streak, accuracy.** Last 10 results, streak, and win rate persist per player; a reset
+  action clears stats but leaves a pending guess untouched.
 
 ## Architecture
 
@@ -71,36 +56,23 @@ flowchart TB
     L2 -->|"fetch price"| Coinbase
 ```
 
-Fully serverless on AWS, defined as infrastructure-as-code in `backend/template.yaml` (AWS SAM /
-CloudFormation) — one `sam deploy` creates everything:
+Serverless on AWS, defined as infrastructure-as-code in `backend/template.yaml` (SAM/CloudFormation) —
+one `sam deploy` builds it all.
 
-- **HTTP API**: API Gateway (HTTP API) → 3 Lambda functions (Node.js 22) → DynamoDB
-  - `GET /players/{playerId}` — fetch-or-create the player, lazily resolve a pending guess, return
-    current state + live price
-  - `POST /players/{playerId}/guess` — place a new guess (rejected with `409` if one is already pending)
-  - `POST /players/{playerId}/reset` — clear score/streak/accuracy/history (leaves a pending guess intact)
-- **WebSocket API**: a separate API Gateway (WebSocket) + one router Lambda handling `$connect`,
-  `$disconnect`, `subscribe`, and `tick`. No DynamoDB Streams in the middle — whichever Lambda (HTTP or
-  WS) just wrote a change looks up who's subscribed to that player (via a `ConnectionsTable` GSI) and
-  pushes the new state to each of them directly with the API Gateway Management API. Connection records
-  carry a TTL matching API Gateway's own 2-hour max WebSocket lifetime, so a missed `$disconnect` cleans
-  itself up.
-- **Data store**: two DynamoDB tables, both on-demand billing — `Players` (keyed by `playerId`) and
-  `Connections` (keyed by `connectionId`, GSI on `playerId`)
-- **Price feed**: [Coinbase's public spot price API](https://api.coinbase.com/v2/prices/BTC-USD/spot)
-  (no API key required), called server-side only
-- **Frontend hosting**: S3 (private, no public access) behind CloudFront using Origin Access Control —
-  the bucket is never directly reachable, everything goes through CloudFront
-- Region: `eu-north-1` (Stockholm)
+- **HTTP API** → 3 Lambdas (Node 22) → DynamoDB: `GET /players/{id}`, `POST /players/{id}/guess`
+  (`409` if one's pending), `POST /players/{id}/reset`
+- **WebSocket API** → 1 Lambda, routes `$connect`/`$disconnect`/`subscribe`/`tick`. No DynamoDB
+  Streams — whichever Lambda writes a change looks up subscribers (via a GSI) and pushes directly.
+  Connections carry a TTL matching API Gateway's 2h socket lifetime.
+- **DynamoDB**: `Players` (by `playerId`) and `Connections` (by `connectionId`, GSI on `playerId`),
+  both on-demand
+- **Price feed**: [Coinbase spot API](https://api.coinbase.com/v2/prices/BTC-USD/spot), server-side only
+- **Frontend hosting**: S3 (private) behind CloudFront + Origin Access Control
+- Region: `eu-north-1`
 
-Frontend: Angular 22 (standalone components, signals, zoneless change detection) + Tailwind CSS v4,
-styled as a trading-terminal (Space Grotesk + JetBrains Mono, live sparkline chart, session high/low,
-streak/accuracy stat pills), with a light/dark theme toggle — the choice persists in `localStorage` and
-is applied before Angular even boots, so there's no flash of the wrong theme on reload. No state
-management library — the whole app is signals and a handful of computed values.
+Frontend: Angular 22 (signals, zoneless) + Tailwind v4, light/dark theme toggle, no state library.
 
-**Observability:** CloudWatch alarms on Lambda error rates and DynamoDB throttling publish to an SNS
-topic (`AlarmTopicArn` in the stack outputs) — subscribe an email or Slack webhook to it to get paged.
+**Observability:** CloudWatch alarms → SNS topic (`AlarmTopicArn` in stack outputs).
 
 ## Running locally
 
